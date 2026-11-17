@@ -1,4 +1,5 @@
-import t from "ava";
+import assert from "node:assert/strict";
+import test from "node:test";
 import fs from "fs-extra";
 import path from "path";
 
@@ -21,7 +22,7 @@ function getDomainData(subdomain) {
     }
 }
 
-t("Nested subdomains should not exist without a parent subdomain", (t) => {
+test("Nested subdomains should not exist without a parent subdomain", () => {
     files.forEach((file) => {
         const subdomain = file.replace(/\.json$/, "");
         const parts = subdomain.split(".");
@@ -30,12 +31,12 @@ t("Nested subdomains should not exist without a parent subdomain", (t) => {
             const parent = parts.slice(i).join(".");
             if (parent.startsWith("_")) continue;
 
-            t.true(files.includes(`${parent}.json`), `${file}: Parent subdomain "${parent}" does not exist`);
+            assert.equal(files.includes(`${parent}.json`), true, `${file}: Parent subdomain "${parent}" does not exist`);
         }
     });
 });
 
-t("Nested subdomains should not exist if any parent subdomain has NS records", (t) => {
+test("Nested subdomains should not exist if any parent subdomain has NS records", () => {
     files.forEach((file) => {
         const subdomain = file.replace(/\.json$/, "");
         const parts = subdomain.split(".");
@@ -45,12 +46,12 @@ t("Nested subdomains should not exist if any parent subdomain has NS records", (
             if (parent.startsWith("_") || !files.includes(`${parent}.json`)) continue;
             const parentData = getDomainData(parent);
 
-            t.true(!parentData.records.NS, `${file}: Parent subdomain "${parent}" has NS records`);
+            assert.equal(!parentData.records.NS, true, `${file}: Parent subdomain "${parent}" has NS records`);
         }
     });
 });
 
-t("Nested subdomains should be owned by the parent subdomain's owner", (t) => {
+test("Nested subdomains should be owned by the parent subdomain's owner", () => {
     files.forEach((file) => {
         const subdomain = file.replace(/\.json$/, "");
         const parentDomain = subdomain.split(".").reverse()[0];
@@ -59,15 +60,15 @@ t("Nested subdomains should be owned by the parent subdomain's owner", (t) => {
             const data = getDomainData(subdomain);
             const parentData = getDomainData(parentDomain);
 
-            t.true(
-                data.owner.username.toLowerCase() === parentData.owner.username.toLowerCase(),
+            assert.equal(
+                data.owner.username.toLowerCase() === parentData.owner.username.toLowerCase(), true,
                 `${file}: Owner does not match the parent subdomain`
             );
         }
     });
 });
 
-t("Users are limited to one single character subdomain", (t) => {
+test("Users are limited to one single character subdomain", () => {
     const results = [];
 
     files.forEach((file) => {
@@ -92,7 +93,7 @@ t("Users are limited to one single character subdomain", (t) => {
         return acc;
     }, {});
 
-    t.is(
+    assert.equal(
         duplicates.length,
         0,
         Object.keys(output)
@@ -100,5 +101,4 @@ t("Users are limited to one single character subdomain", (t) => {
             .join("\n")
     );
 
-    t.pass();
 });

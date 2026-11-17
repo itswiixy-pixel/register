@@ -1,4 +1,5 @@
-import t from "ava";
+import assert from "node:assert/strict";
+import test from "node:test";
 import fs from "fs-extra";
 import path from "path";
 
@@ -90,143 +91,143 @@ function isValidHexadecimal(value) {
     return /^[0-9a-fA-F]+$/.test(value);
 }
 
-function validateRecordValues(t, data, file) {
+function validateRecordValues(data, file) {
     const subdomain = file.replace(/\.json$/, "");
 
     Object.entries(data.records).forEach(([key, value]) => {
         // General validation for arrays
         if (["A", "AAAA", "MX", "NS"].includes(key)) {
-            t.true(Array.isArray(value), `${file}: Record value for ${key} should be an array`);
+            assert.equal(Array.isArray(value), true, `${file}: Record value for ${key} should be an array`);
 
             value.forEach((record, idx) => {
-                t.true(
-                    typeof record === "string" || typeof record === "object",
+                assert.equal(
+                    typeof record === "string" || typeof record === "object", true,
                     `${file}: Record value for ${key} should be a string or an object at index ${idx}`
                 );
 
                 if (key === "A") {
-                    t.true(ipv4Regex.test(record), `${file}: Invalid IPv4 address for ${key} at index ${idx}`);
-                    t.true(
-                        validateIPv4(record, data.proxied),
+                    assert.equal(ipv4Regex.test(record), true, `${file}: Invalid IPv4 address for ${key} at index ${idx}`);
+                    assert.equal(
+                        validateIPv4(record, data.proxied), true,
                         `${file}: Invalid IPv4 address for ${key} at index ${idx}`
                     );
                 } else if (key === "AAAA") {
                     const expandedIPv6 = expandIPv6(record);
-                    t.true(ipv6Regex.test(expandedIPv6), `${file}: Invalid IPv6 address for ${key} at index ${idx}`);
-                    t.true(validateIPv6(expandedIPv6), `${file}: Invalid IPv6 address for ${key} at index ${idx}`);
+                    assert.equal(ipv6Regex.test(expandedIPv6), true, `${file}: Invalid IPv6 address for ${key} at index ${idx}`);
+                    assert.equal(validateIPv6(expandedIPv6), true, `${file}: Invalid IPv6 address for ${key} at index ${idx}`);
                 } else if (key === "MX") {
-                    t.true(
-                        typeof record === "object" || typeof record === "string",
+                    assert.equal(
+                        typeof record === "object" || typeof record === "string", true,
                         `${file}: Record value for ${key} should be an object or a string at index ${idx}`
                     );
 
                     if (typeof record === "string") {
-                        t.true(isValidHostname(record), `${file}: Invalid hostname for ${key} at index ${idx}`);
+                        assert.equal(isValidHostname(record), true, `${file}: Invalid hostname for ${key} at index ${idx}`);
                     } else {
-                        t.true(isValidHostname(record.target), `${file}: Invalid target for ${key} at index ${idx}`);
-                        t.true(
-                            Number.isInteger(record.priority) && record.priority >= 0 && record.priority <= 65535,
+                        assert.equal(isValidHostname(record.target), true, `${file}: Invalid target for ${key} at index ${idx}`);
+                        assert.equal(
+                            Number.isInteger(record.priority) && record.priority >= 0 && record.priority <= 65535, true,
                             `${file}: Invalid priority for ${key} at index ${idx}`
                         );
                     }
                 } else if (key === "NS") {
-                    t.true(isValidHostname(record), `${file}: Invalid hostname for ${key} at index ${idx}`);
+                    assert.equal(isValidHostname(record), true, `${file}: Invalid hostname for ${key} at index ${idx}`);
                 }
             });
         }
 
         // CNAME and URL validations
         if (["CNAME", "URL"].includes(key)) {
-            t.true(typeof value === "string", `${file}: Record value for ${key} should be a string`);
+            assert.equal(typeof value === "string", true, `${file}: Record value for ${key} should be a string`);
 
             if (key === "CNAME") {
-                t.true(isValidHostname(value), `${file}: Invalid hostname for ${key}`);
-                t.true(value !== `${subdomain}.is-a.dev`, `${file}: ${key} cannot point to itself`);
-                t.true(value !== "is-a.dev", `${file}: ${key} cannot point to is-a.dev`);
+                assert.equal(isValidHostname(value), true, `${file}: Invalid hostname for ${key}`);
+                assert.equal(value !== `${subdomain}.is-a.dev`, true, `${file}: ${key} cannot point to itself`);
+                assert.equal(value !== "is-a.dev", true, `${file}: ${key} cannot point to is-a.dev`);
 
                 for (const disallowed of disallowedCNAMEs) {
                     if (disallowed.startsWith(".")) {
-                        t.false(value.endsWith(disallowed), `${file}: ${key} cannot end with ${disallowed}`);
+                        assert.equal(value.endsWith(disallowed), false, `${file}: ${key} cannot end with ${disallowed}`);
                     } else {
-                        t.false(value === disallowed, `${file}: ${key} cannot be ${disallowed}`);
+                        assert.equal(value === disallowed, false, `${file}: ${key} cannot be ${disallowed}`);
                     }
                 }
             } else if (key === "URL") {
-                t.true(
-                    value.startsWith("http://") || value.startsWith("https://"),
+                assert.equal(
+                    value.startsWith("http://") || value.startsWith("https://"), true,
                     `${file}: Record value for ${key} must start with http:// or https://`
                 );
-                t.notThrows(() => new URL(value), `${file}: Invalid URL for ${key}`);
+                assert.doesNotThrow(() => new URL(value), `${file}: Invalid URL for ${key}`);
 
                 // Check for self-referencing redirects
                 const urlHost = new URL(value).host;
-                t.false(urlHost === `${subdomain}.is-a.dev`, `${file}: ${key} cannot point to itself`);
+                assert.equal(urlHost === `${subdomain}.is-a.dev`, false, `${file}: ${key} cannot point to itself`);
             }
         }
 
         // CAA, DS, SRV, TLSA validations
         if (["CAA", "DS", "SRV", "TLSA"].includes(key)) {
-            t.true(Array.isArray(value), `${file}: Record value for ${key} should be an array`);
+            assert.equal(Array.isArray(value), true, `${file}: Record value for ${key} should be an array`);
 
             value.forEach((record, idx) => {
-                t.true(
-                    typeof record === "object",
+                assert.equal(
+                    typeof record === "object", true,
                     `${file}: Record value for ${key} should be an object at index ${idx}`
                 );
 
                 if (key === "CAA") {
-                    t.true(
-                        ["issue", "issuewild", "iodef"].includes(record.tag),
+                    assert.equal(
+                        ["issue", "issuewild", "iodef"].includes(record.tag), true,
                         `${file}: Invalid tag for ${key} at index ${idx}`
                     );
-                    t.true(typeof record.value === "string", `${file}: Invalid value for ${key} at index ${idx}`);
-                    t.true(
-                        isValidHostname(record.value) || record.value === ";",
+                    assert.equal(typeof record.value === "string", true, `${file}: Invalid value for ${key} at index ${idx}`);
+                    assert.equal(
+                        isValidHostname(record.value) || record.value === ";", true,
                         `${file}: Value must be a hostname or semicolon for ${key} at index ${idx}`
                     );
                 } else if (key === "DS") {
-                    t.true(
-                        Number.isInteger(record.key_tag) && record.key_tag >= 0 && record.key_tag <= 65535,
+                    assert.equal(
+                        Number.isInteger(record.key_tag) && record.key_tag >= 0 && record.key_tag <= 65535, true,
                         `${file}: Invalid key_tag for ${key} at index ${idx}`
                     );
-                    t.true(
-                        Number.isInteger(record.algorithm) && record.algorithm >= 0 && record.algorithm <= 255,
+                    assert.equal(
+                        Number.isInteger(record.algorithm) && record.algorithm >= 0 && record.algorithm <= 255, true,
                         `${file}: Invalid algorithm for ${key} at index ${idx}`
                     );
-                    t.true(
-                        Number.isInteger(record.digest_type) && record.digest_type >= 0 && record.digest_type <= 255,
+                    assert.equal(
+                        Number.isInteger(record.digest_type) && record.digest_type >= 0 && record.digest_type <= 255, true,
                         `${file}: Invalid digest_type for ${key} at index ${idx}`
                     );
-                    t.true(isValidHexadecimal(record.digest), `${file}: Invalid digest for ${key} at index ${idx}`);
+                    assert.equal(isValidHexadecimal(record.digest), true, `${file}: Invalid digest for ${key} at index ${idx}`);
                 } else if (key === "SRV") {
-                    t.true(
-                        Number.isInteger(record.priority) && record.priority >= 0 && record.priority <= 65535,
+                    assert.equal(
+                        Number.isInteger(record.priority) && record.priority >= 0 && record.priority <= 65535, true,
                         `${file}: Invalid priority for ${key} at index ${idx}`
                     );
-                    t.true(
-                        Number.isInteger(record.weight) && record.weight >= 0 && record.weight <= 65535,
+                    assert.equal(
+                        Number.isInteger(record.weight) && record.weight >= 0 && record.weight <= 65535, true,
                         `${file}: Invalid weight for ${key} at index ${idx}`
                     );
-                    t.true(
-                        Number.isInteger(record.port) && record.port >= 0 && record.port <= 65535,
+                    assert.equal(
+                        Number.isInteger(record.port) && record.port >= 0 && record.port <= 65535, true,
                         `${file}: Invalid port for ${key} at index ${idx}`
                     );
-                    t.true(isValidHostname(record.target), `${file}: Invalid target for ${key} at index ${idx}`);
+                    assert.equal(isValidHostname(record.target), true, `${file}: Invalid target for ${key} at index ${idx}`);
                 } else if (key === "TLSA") {
-                    t.true(
-                        Number.isInteger(record.usage) && record.usage >= 0 && record.usage <= 255,
+                    assert.equal(
+                        Number.isInteger(record.usage) && record.usage >= 0 && record.usage <= 255, true,
                         `${file}: Invalid usage for ${key} at index ${idx}`
                     );
-                    t.true(
-                        Number.isInteger(record.selector) && record.selector >= 0 && record.selector <= 255,
+                    assert.equal(
+                        Number.isInteger(record.selector) && record.selector >= 0 && record.selector <= 255, true,
                         `${file}: Invalid selector for ${key} at index ${idx}`
                     );
-                    t.true(
-                        Number.isInteger(record.matching_type) && record.matching_type >= 0 && record.matching_type <= 255,
+                    assert.equal(
+                        Number.isInteger(record.matching_type) && record.matching_type >= 0 && record.matching_type <= 255, true,
                         `${file}: Invalid matching_type for ${key} at index ${idx}`
                     );
-                    t.true(
-                        isValidHexadecimal(record.certificate),
+                    assert.equal(
+                        isValidHexadecimal(record.certificate), true,
                         `${file}: Invalid certificate for ${key} at index ${idx}`
                     );
                 }
@@ -237,16 +238,16 @@ function validateRecordValues(t, data, file) {
         if (key === "TXT") {
             const values = Array.isArray(value) ? value : [value];
             values.forEach((record, idx) => {
-                t.true(typeof record === "string", `${file}: TXT record value should be a string at index ${idx}`);
+                assert.equal(typeof record === "string", true, `${file}: TXT record value should be a string at index ${idx}`);
 
-                t.false(
-                    record.includes("github-pages-challenge"),
+                assert.equal(
+                    record.includes("github-pages-challenge"), false,
                     `${file}: TXT record cannot contain 'github-pages-challenge' at index ${idx}`
                 );
 
                 if (record.startsWith("vc-domain-verify=")) {
-                    t.true(
-                        file.startsWith("_vercel."),
+                    assert.equal(
+                        file.startsWith("_vercel."), true,
                         `${file}: vc-domain-verify TXT records are only allowed in files starting with _vercel.`
                     );
 
@@ -254,8 +255,8 @@ function validateRecordValues(t, data, file) {
                     const targetName = file.replace(/^_vercel\./, "").replace(/\.json$/, "");
                     const expectedDomain = `${targetName}.is-a.dev`;
 
-                    t.true(
-                        domainToken === expectedDomain || domainToken.endsWith(`.${expectedDomain}`),
+                    assert.equal(
+                        domainToken === expectedDomain || domainToken.endsWith(`.${expectedDomain}`), true,
                         `${file}: Vercel TXT record domain (${domainToken}) must be '${expectedDomain}' or end with '.${expectedDomain}'`
                     );
                 }
@@ -272,102 +273,101 @@ function validateRecordValues(t, data, file) {
             const urlMessage = `${file}: Custom path in redirect_config`;
 
             // Validate the custom path
-            t.true(
-                pathRegex.test(customPath),
+            assert.equal(
+                pathRegex.test(customPath), true,
                 `${urlMessage} must start with a slash, contain only alphanumeric characters, hyphens, underscores, periods, and slashes, and cannot end with a slash at index ${idx}`
             );
-            t.true(
-                customPath.length >= 2 && customPath.length <= 255,
+            assert.equal(
+                customPath.length >= 2 && customPath.length <= 255, true,
                 `${urlMessage} should be 2-255 characters long at index ${idx}`
             );
 
             // Validate the redirect URL
-            t.true(
-                data.records.URL !== customRedirectURL,
+            assert.equal(
+                data.records.URL !== customRedirectURL, true,
                 `${urlMessage} should be different from the URL record at index ${idx}`
             );
-            t.true(
-                customRedirectURL.startsWith("http://") || customRedirectURL.startsWith("https://"),
+            assert.equal(
+                customRedirectURL.startsWith("http://") || customRedirectURL.startsWith("https://"), true,
                 `${urlMessage} must start with http:// or https:// at index ${idx}`
             );
-            t.notThrows(() => new URL(customRedirectURL), `${urlMessage} contains an invalid URL at index ${idx}`);
+            assert.doesNotThrow(() => new URL(customRedirectURL), `${urlMessage} contains an invalid URL at index ${idx}`);
 
             // Check for self-referencing redirects
             const urlHost = new URL(customRedirectURL).host;
-            t.false(urlHost === `${subdomain}.is-a.dev`, `${urlMessage} cannot point to itself at index ${idx}`);
+            assert.equal(urlHost === `${subdomain}.is-a.dev`, false, `${urlMessage} cannot point to itself at index ${idx}`);
         });
     }
 }
 
-t("All files should have valid records", (t) => {
+test("All files should have valid records", () => {
     files.forEach((file) => {
         const data = getDomainData(file);
         const recordKeys = Object.keys(data.records);
 
         if (file.startsWith("_vercel")) {
-            t.true(
-                /^_vercel\.[^.]+\.json$/.test(file),
+            assert.equal(
+                /^_vercel\.[^.]+\.json$/.test(file), true,
                 `${file}: Files starting with '_vercel' must have format '_vercel.<name>.json'`
             );
 
-            t.true(
-                recordKeys.includes("TXT") && recordKeys.length === 1,
+            assert.equal(
+                recordKeys.includes("TXT") && recordKeys.length === 1, true,
                 `${file}: Files starting with '_vercel' can only have TXT records`
             );
 
             const txtRecords = data.records.TXT;
             const txtList = Array.isArray(txtRecords) ? txtRecords : [txtRecords];
 
-            t.true(
-                txtList.length > 0 && txtList.every((record) => typeof record === "string" && record.startsWith("vc-domain-verify=")),
+            assert.equal(
+                txtList.length > 0 && txtList.every((record) => typeof record === "string" && record.startsWith("vc-domain-verify=")), true,
                 `${file}: Vercel verification files must contain at least one TXT record and all TXT records must start with 'vc-domain-verify='`
             );
         }
 
         recordKeys.forEach((key) => {
-            t.true(validateRecordType(key), `${file}: Invalid record type: ${key}`);
+            assert.equal(validateRecordType(key), true, `${file}: Invalid record type: ${key}`);
         });
 
         // Record type combinations validation
         if (recordKeys.includes("CNAME")) {
             if (!data.proxied) {
-                t.is(recordKeys.length, 1, `${file}: CNAME records cannot be combined with other records unless proxied`);
+                assert.equal(recordKeys.length, 1, `${file}: CNAME records cannot be combined with other records unless proxied`);
             } else {
-                t.true(!recordKeys.includes("A") && !recordKeys.includes("AAAA"), `${file}: CNAME records cannot be combined with A or AAAA records`);
+                assert.equal(!recordKeys.includes("A") && !recordKeys.includes("AAAA"), true, `${file}: CNAME records cannot be combined with A or AAAA records`);
             }
         }
         if (recordKeys.includes("NS")) {
-            t.true(
-                recordKeys.length === 1 || (recordKeys.length === 2 && recordKeys.includes("DS")),
+            assert.equal(
+                recordKeys.length === 1 || (recordKeys.length === 2 && recordKeys.includes("DS")), true,
                 `${file}: NS records cannot be combined with other records, except for DS records`
             );
         }
         if (recordKeys.includes("DS")) {
-            t.true(recordKeys.includes("NS"), `${file}: DS records must be combined with NS records`);
+            assert.equal(recordKeys.includes("NS"), true, `${file}: DS records must be combined with NS records`);
         }
         if (recordKeys.includes("URL")) {
-            t.true(
-                !recordKeys.includes("A") && !recordKeys.includes("AAAA") && !recordKeys.includes("CNAME"),
+            assert.equal(
+                !recordKeys.includes("A") && !recordKeys.includes("AAAA") && !recordKeys.includes("CNAME"), true,
                 `${file}: URL records cannot be combined with A, AAAA, or CNAME records`
             );
         }
         if (data.redirect_config) {
-            t.true(
-                recordKeys.includes("URL") || data.proxied,
+            assert.equal(
+                recordKeys.includes("URL") || data.proxied, true,
                 `${file}: Redirect config must be combined with a URL record or the domain must be proxied`
             );
             if (data.redirect_config.redirect_paths) {
-                t.true(recordKeys.includes("URL"), `${file}: redirect_config.redirect_paths requires a URL record`);
+                assert.equal(recordKeys.includes("URL"), true, `${file}: redirect_config.redirect_paths requires a URL record`);
             }
         }
 
-        validateRecordValues(t, data, file);
+        validateRecordValues(data, file);
     });
 
-    t.pass();
 });
 
-t("Root subdomains should have at least one usable record", (t) => {
+test("Root subdomains should have at least one usable record", () => {
     const usableRecordTypes = ["A", "AAAA", "CNAME", "MX", "NS", "URL"];
 
     files.forEach((file) => {
@@ -377,8 +377,8 @@ t("Root subdomains should have at least one usable record", (t) => {
         const data = getDomainData(file);
         const recordKeys = Object.keys(data.records);
 
-        t.true(
-            usableRecordTypes.some((record) => recordKeys.includes(record)),
+        assert.equal(
+            usableRecordTypes.some((record) => recordKeys.includes(record)), true,
             `${file}: Root subdomains must have at least one A, AAAA, CNAME, MX, NS, or URL record`
         );
     });

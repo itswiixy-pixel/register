@@ -1,4 +1,5 @@
-import t from "ava";
+import assert from "node:assert/strict";
+import test from "node:test";
 import fs from "fs-extra";
 import path from "path";
 
@@ -81,99 +82,97 @@ function findDuplicateKeys(jsonString) {
     return [...duplicateKeys];
 }
 
-async function validateFields(t, obj, fields, file, prefix = "") {
+function validateFields(obj, fields, file, prefix = "") {
     for (const key of Object.keys(fields)) {
         const fieldPath = prefix ? `${prefix}.${key}` : key;
 
         if (obj.hasOwnProperty(key)) {
-            t.is(typeof obj[key], fields[key], `${file}: Field ${fieldPath} should be of type ${fields[key]}`);
+            assert.equal(typeof obj[key], fields[key], `${file}: Field ${fieldPath} should be of type ${fields[key]}`);
         } else if (fields === requiredFields || fields === requiredOwnerFields) {
-            t.true(false, `${file}: Missing required field: ${fieldPath}`);
+            assert.equal(false, true, `${file}: Missing required field: ${fieldPath}`);
         }
     }
 }
 
-async function validateFileName(t, file) {
-    t.true(file.endsWith(".json"), `${file}: File does not have .json extension`);
-    t.false(file.includes(".is-a.dev"), `${file}: File name should not contain .is-a.dev`);
-    t.true(file === file.toLowerCase(), `${file}: File name should be all lowercase`);
-    t.false(file.includes("--"), `${file}: File name should not contain consecutive hyphens`);
+function validateFileName(file) {
+    assert.equal(file.endsWith(".json"), true, `${file}: File does not have .json extension`);
+    assert.equal(file.includes(".is-a.dev"), false, `${file}: File name should not contain .is-a.dev`);
+    assert.equal(file === file.toLowerCase(), true, `${file}: File name should be all lowercase`);
+    assert.equal(file.includes("--"), false, `${file}: File name should not contain consecutive hyphens`);
 
     const subdomain = file.replace(/\.json$/, "");
 
-    t.regex(
+    assert.match(
         subdomain + ".is-a.dev",
         hostnameRegex,
         `${file}: FQDN must be 1-253 characters, can use letters, numbers, dots, and non-consecutive hyphens.`
     );
-    t.false(internalDomains.includes(subdomain), `${file}: Subdomain name is registered internally`);
-    t.false(reservedDomains.includes(subdomain), `${file}: Subdomain name is reserved`);
-    t.true(
-        !internalDomains.some((i) => subdomain.endsWith(`.${i}`)),
+    assert.equal(internalDomains.includes(subdomain), false, `${file}: Subdomain name is registered internally`);
+    assert.equal(reservedDomains.includes(subdomain), false, `${file}: Subdomain name is reserved`);
+    assert.equal(
+        !internalDomains.some((i) => subdomain.endsWith(`.${i}`)), true,
         `${file}: Subdomain name is registered internally`
     );
-    t.true(!reservedDomains.some((r) => subdomain.endsWith(`.${r}`)), `${file}: Subdomain name is reserved`);
+    assert.equal(!reservedDomains.some((r) => subdomain.endsWith(`.${r}`)), true, `${file}: Subdomain name is reserved`);
 
     const rootSubdomain = subdomain.split(".").pop();
-    t.false(rootSubdomain.startsWith("_"), `${file}: Root subdomains should not start with an underscore`);
-    t.false(rootSubdomain.includes("is-a-dev"), `${file}: Root subdomains should not contain is-a-dev`);
+    assert.equal(rootSubdomain.startsWith("_"), false, `${file}: Root subdomains should not start with an underscore`);
+    assert.equal(rootSubdomain.includes("is-a-dev"), false, `${file}: Root subdomains should not contain is-a-dev`);
 }
 
-async function processFile(file, t) {
+function processFile(file) {
     const filePath = path.join(domainsPath, file);
-    const data = await fs.readJson(filePath);
+    const rawData = fs.readFileSync(filePath, "utf8");
+    const data = JSON.parse(rawData.replace(/^\uFEFF/, ""));
 
-    validateFileName(t, file);
+    validateFileName(file);
 
     // Check for duplicate keys
-    const rawData = await fs.readFile(filePath, "utf8");
     const duplicateKeys = findDuplicateKeys(rawData);
-    t.true(!duplicateKeys.length, `${file}: Duplicate keys found: ${duplicateKeys.join(", ")}`);
+    assert.equal(!duplicateKeys.length, true, `${file}: Duplicate keys found: ${duplicateKeys.join(", ")}`);
 
     // Validate fields
-    validateFields(t, data, requiredFields, file);
-    validateFields(t, data.owner, requiredOwnerFields, file, "owner");
-    validateFields(t, data.owner, optionalOwnerFields, file, "owner");
-    validateFields(t, data, optionalFields, file);
+    validateFields(data, requiredFields, file);
+    validateFields(data.owner, requiredOwnerFields, file, "owner");
+    validateFields(data.owner, optionalOwnerFields, file, "owner");
+    validateFields(data, optionalFields, file);
 
     if (data.owner.email) {
-        t.regex(data.owner.email, emailRegex, `${file}: Owner email should be a valid email address`);
-        t.false(
-            data.owner.email.endsWith("@users.noreply.github.com"),
+        assert.match(data.owner.email, emailRegex, `${file}: Owner email should be a valid email address`);
+        assert.equal(
+            data.owner.email.endsWith("@users.noreply.github.com"), false,
             `${file}: Owner email should not be a GitHub no-reply email`
         );
     }
 
-    t.true(Object.keys(data.records).length > 0, `${file}: Missing DNS records`);
+    assert.equal(Object.keys(data.records).length > 0, true, `${file}: Missing DNS records`);
 
     if (data.redirect_config) {
-        validateFields(t, data.redirect_config, optionalRedirectConfigFields, file, "redirect_config");
+        validateFields(data.redirect_config, optionalRedirectConfigFields, file, "redirect_config");
     }
 
     for (const field of blockedFields) {
-        t.true(!data.hasOwnProperty(field), `${file}: Disallowed field: ${field}`);
+        assert.equal(!data.hasOwnProperty(field), true, `${file}: Disallowed field: ${field}`);
     }
 }
 
-t("JSON files should not be in the root directory", (t) => {
+test("JSON files should not be in the root directory", () => {
     const rootFiles = fs
         .readdirSync(path.resolve())
         .filter((file) => file.endsWith(".json") && !ignoredRootJSONFiles.includes(file));
-    t.is(rootFiles.length, 0, "JSON files should not be in the root directory");
+    assert.equal(rootFiles.length, 0, "JSON files should not be in the root directory");
 });
 
-t("All files should be valid JSON", async (t) => {
-    await Promise.all(
-        files.map((file) => {
-            return t.notThrows(() => fs.readJson(path.join(domainsPath, file)), `${file}: Invalid JSON file`);
-        })
-    );
+test("All files should be valid JSON", () => {
+    for (const file of files) {
+        assert.doesNotThrow(() => fs.readJsonSync(path.join(domainsPath, file)), `${file}: Invalid JSON file`);
+    }
 });
 
-t("All files should have valid file names", async (t) => {
-    await Promise.all(files.map((file) => validateFileName(t, file)));
+test("All files should have valid file names", () => {
+    for (const file of files) validateFileName(file);
 });
 
-t("All files should have valid required and optional fields", async (t) => {
-    await Promise.all(files.map((file) => processFile(file, t)));
+test("All files should have valid required and optional fields", () => {
+    for (const file of files) processFile(file);
 });

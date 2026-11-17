@@ -18,35 +18,57 @@ on:
 concurrency:
     group: ${{ github.ref }}-ci
 
+permissions:
+    contents: read
+    pull-requests: read
+
 jobs:
     tests:
         name: Tests
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+              with:
+                  fetch-depth: 2
+                  persist-credentials: false
 
-            - run: npm ci
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+              with:
+                  node-version: 24.x
+
+            - run: npm ci --ignore-scripts
 
             - name: Fetch PR information
+              id: pr
               if: github.event_name == 'pull_request'
               env:
                   GH_TOKEN: ${{ github.token }}
                   PR: ${{ github.event.pull_request.number }}
+                  PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+                  PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
               run: |
-                  echo "PR_AUTHOR=${{ github.event.pull_request.user.login }}" >> "$GITHUB_ENV"
-                  echo "PR_AUTHOR_ID=${{ github.event.pull_request.user.id }}" >> "$GITHUB_ENV"
-                  echo "PR_LABELS=$(gh pr view ${{ github.event.pull_request.number }} --json labels --jq '[.labels[].name]')" >> "$GITHUB_ENV"
-                  echo "CHANGED_FILES=$(gh api --jq '[.[] | select(.status != "removed") | .filename]' "repos/${{ github.repository }}/pulls/$PR/files")" >> "$GITHUB_ENV"
-                  echo "DELETED_FILES=$(gh api --jq '[.[] | select(.status == "removed") | {name: .filename, data: .patch}]' "repos/${{ github.repository }}/pulls/$PR/files")" >> "$GITHUB_ENV"
+                  base=$(git rev-parse --verify HEAD^1)
+                  labels=$(gh pr view "$PR" --json labels --jq '[.labels[].name]')
+                  {
+                      echo "PR_BASE=$base"
+                      echo "PR_AUTHOR=$PR_AUTHOR"
+                      echo "PR_AUTHOR_ID=$PR_AUTHOR_ID"
+                      echo "PR_LABELS=$labels"
+                  } >> "$GITHUB_ENV"
+                  if git diff --quiet "$base" HEAD -- dnsconfig.js; then
+                      echo "dnsconfig=false" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "dnsconfig=true" >> "$GITHUB_OUTPUT"
+                  fi
 
             - uses: gacts/install-dnscontrol@890ba3249712c51203ccb7aba63307c0091e921b # v1.3.4
-              if: github.event_name == 'pull_request' && contains(fromJson(env.CHANGED_FILES), 'dnsconfig.js')
+              if: steps.pr.outputs.dnsconfig == 'true'
               with:
                   version: 4.14.0
 
             - name: Run DNSControl checks
-              if: github.event_name == 'pull_request' && contains(fromJson(env.CHANGED_FILES), 'dnsconfig.js')
+              if: steps.pr.outputs.dnsconfig == 'true'
               run: dnscontrol check
 
             - name: Run tests
-              run: npx ava tests/*.test.js --timeout=1m
+              run: npm test
